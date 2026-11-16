@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Animation : compresser un brin d’ADN</title>
+<style>
+:root{--bg:#f7f8fa;--card:#fff;--tx:#1b1f27;--mut:#667085;--bd:#d9dde5;--hl:#fff3b0;--ac:#2563eb;
+--A:#fca5a5;--C:#93c5fd;--G:#86efac;--T:#fcd34d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151b;--card:#1b2029;--tx:#e8ebf1;--mut:#9aa3b2;--bd:#323a48;--hl:#5b4b00;--ac:#6ea0ff;--A:#b94a4a;--C:#3b6fb8;--G:#3f9a5f;--T:#b88a14}}
+:root[data-theme="dark"]{--bg:#12151b;--card:#1b2029;--tx:#e8ebf1;--mut:#9aa3b2;--bd:#323a48;--hl:#5b4b00;--ac:#6ea0ff;--A:#b94a4a;--C:#3b6fb8;--G:#3f9a5f;--T:#b88a14}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.4}
+main{max-width:900px;margin:0 auto;padding:16px}
+h1{font-size:1.3rem;margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+input{font:inherit;padding:7px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);letter-spacing:2px;text-transform:uppercase;width:min(260px,100%)}
+button{font:inherit;padding:7px 14px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);cursor:pointer}
+button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+pre{margin:0;font:13px/1.7 ui-monospace,Consolas,monospace;overflow-x:auto}
+.ln{display:block;padding:0 6px;border-radius:4px;white-space:pre}
+.ln.on{background:var(--hl);font-weight:600}
+.lab{font-size:.8rem;color:var(--mut);margin:10px 0 4px}
+.lab code{color:var(--tx);font-weight:700}
+.seq{display:flex;flex-wrap:wrap;gap:4px;min-height:38px;align-items:center;font-family:ui-monospace,monospace}
+.b{width:30px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-weight:700;border:2px solid transparent;transition:.25s}
+.b.A{background:var(--A)}.b.C{background:var(--C)}.b.G{background:var(--G)}.b.T{background:var(--T)}
+.b.cur{border-color:var(--ac);transform:translateY(-4px)}
+.res{font:700 1.3rem ui-monospace,monospace;letter-spacing:2px;min-height:32px;word-break:break-all}
+.note{padding:10px;border-left:4px solid var(--ac);background:var(--bg);border-radius:6px;min-height:44px}
+.step{color:var(--mut);font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+<h1>🧬 Animation de la fonction <code>compresser(ch)</code></h1>
+<div class="card row">
+  <label for="in">Brin :</label>
+  <input id="in" value="AATTTGCCCC" maxlength="24" autocomplete="off">
+  <button class="p" id="go">▶ Lecture</button>
+  <button id="prev">◀</button>
+  <button id="next">Pas ▶</button>
+  <button id="rst">↺</button>
+  <label class="step">Vitesse <input type="range" id="sp" min="1" max="5" value="3" style="width:90px;letter-spacing:0"></label>
+</div>
+<div class="grid">
+  <div class="card"><pre id="code"></pre></div>
+  <div class="card">
+    <div class="lab"><code>ch</code> (reste à traiter)</div><div class="seq" id="ch"></div>
+    <div class="lab"><code>tmp</code> (groupe en cours)</div><div class="seq" id="tmp"></div>
+    <div class="lab"><code>res</code> (résultat)</div><div class="res" id="res"></div>
+    <div class="lab">Explication</div><div class="note" id="note"></div>
+    <div class="step" id="cnt" style="margin-top:8px"></div>
+  </div>
+</div>
+</main>
+<script>
+const CODE=['def compresser(ch):','    res=""','    while ch!="":','        tmp=ch[0]','        ch=ch[1:]','        while ch!="" and ch[0]==tmp[0]:','            tmp+=ch[0]','            ch=ch[1:]','        if len(tmp)>2:','            res+=tmp[0]+str(len(tmp))','        else:','            res+=tmp','    return res'];
+const $=id=>document.getElementById(id);
+$('code').innerHTML=CODE.map((l,i)=>'<span class="ln" id="l'+i+'">'+l.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</span>').join('');
+let steps=[],i=0,timer=null;
+function build(s){
+  steps=[];let ch=s,tmp='',res='';
+  const p=(l,n,c)=>steps.push({l,n,ch,tmp,res,c:c||0});
+  p(0,'Début : on appelle <b>compresser("'+s+'")</b>.');
+  res='';p(1,'On initialise <b>res</b> avec une chaîne vide.');
+  while(true){
+    p(2,'Condition <b>ch != ""</b> : '+(ch!==''?'vrai, il reste des lettres.':'faux, tout le brin est traité → on sort de la boucle.'));
+    if(ch==='')break;
+    tmp=ch[0];p(3,'<b>tmp</b> reçoit la première lettre de ch : « '+tmp+' ».',1);
+    ch=ch.slice(1);p(4,'On retire cette lettre de <b>ch</b>.');
+    while(true){
+      const ok=ch!==''&&ch[0]===tmp[0];
+      p(5,ch===''?'ch est vide : la boucle interne s’arrête.':'Compare ch[0] = « '+ch[0]+' » avec tmp[0] = « '+tmp[0]+' » : '+(ok?'identiques → on étend le groupe.':'différentes → le groupe est terminé.'));
+      if(!ok)break;
+      tmp+=ch[0];p(6,'On ajoute la lettre à <b>tmp</b> (taille = '+tmp.length+').',1);
+      ch=ch.slice(1);p(7,'On retire cette lettre de <b>ch</b>.');
+    }
+    if(tmp.length>2){p(8,'len(tmp) = '+tmp.length+' &gt; 2 : le groupe est compressible.');
+      res+=tmp[0]+tmp.length;tmp=tmp;p(9,'On ajoute « '+tmp[0]+tmp.length+' » à <b>res</b>.',1);}
+    else{p(8,'len(tmp) = '+tmp.length+' ≤ 2 : groupe conservé tel quel.');
+      res+=tmp;p(11,'On ajoute « '+tmp+' » à <b>res</b> sans modification.',1);}
+    tmp='';
+  }
+  p(12,'<b>Résultat : "'+res+'"</b> — gain = '+s.length+' − '+res.length+' = <b>'+(s.length-res.length)+'</b>.');
+}
+const sq=(s,cur)=>[...s].map((c,k)=>'<div class="b '+c+(cur&&k===0?' cur':'')+'">'+c+'</div>').join('');
+function show(){
+  const s=steps[i];
+  document.querySelectorAll('.ln').forEach((e,k)=>e.classList.toggle('on',k===s.l));
+  $('ch').innerHTML=sq(s.ch,true);$('tmp').innerHTML=sq(s.tmp,false);
+  $('res').textContent=s.res;$('note').innerHTML=s.n;
+  $('cnt').textContent='Étape '+(i+1)+' / '+steps.length;
+}
+function stop(){clearInterval(timer);timer=null;$('go').textContent='▶ Lecture'}
+function play(){
+  if(timer){stop();return}
+  if(i>=steps.length-1)i=0;
+  $('go').textContent='⏸ Pause';
+  timer=setInterval(()=>{if(i<steps.length-1){i++;show()}else stop()},1400-$('sp').value*250);
+}
+function load(){stop();const v=$('in').value.toUpperCase().replace(/[^ACGT]/g,'');$('in').value=v;if(!v){$('in').value='AATTTGCCCC';return load()}build(v);i=0;show()}
+$('go').onclick=play;
+$('next').onclick=()=>{stop();if(i<steps.length-1){i++;show()}};
+$('prev').onclick=()=>{stop();if(i>0){i--;show()}};
+$('rst').onclick=()=>{stop();i=0;show()};
+$('in').onchange=load;
+$('sp').oninput=()=>{if(timer){stop();play()}};
+load();
+</script>
+</body>
+</html>
